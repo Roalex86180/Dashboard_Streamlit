@@ -1,0 +1,32 @@
+Arquitectura de Datos Sugerida:
+
+Ingesta y Limpieza (Diaria y Automatizada):
+
+Fuente: Tus archivos Excel diarios.
+Proceso: Un script de Python utilizando la librería pandas.
+Lee el archivo Excel del día.
+Realiza la limpieza exhaustiva que mencionaste (manejo de la columna con tipos de datos mixtos, corrección de las 422 columnas según sea necesario, tratamiento de nulos, etc.).
+Realiza las transformaciones necesarias (creación de nuevas columnas, cálculos, etc.).
+Asegura que los tipos de datos sean los correctos para cada columna.
+Salida del Proceso de Limpieza: El DataFrame de Pandas limpio y procesado.
+Almacenamiento Centralizado de Datos Limpios (Formato Parquet):
+
+Acción: El script de Python guarda/actualiza el DataFrame limpio en formato Parquet.
+Estrategia de Almacenamiento:
+Opción 1 (Más Simple para Empezar): Un único archivo Parquet grande (o un conjunto de archivos si se particiona). El script podría cargar el Parquet existente, añadir los nuevos datos y volver a guardarlo. Para el volumen que manejas inicialmente (300-400 filas/día), esto es manejable, aunque con el tiempo puede volverse más lento el proceso de reescritura.
+Opción 2 (Más Escalable y Recomendada): Archivos Parquet Particionados. Guardar los datos en una estructura de carpetas particionada por fecha (ej. año=YYYY/mes=MM/dia=DD/datos.parquet o año=YYYY/mes=MM/datos_YYYY_MM.parquet). Pandas puede escribir y leer fácilmente estos conjuntos de datos particionados. Esto es mucho más eficiente para las actualizaciones (solo se añade un nuevo archivo/partición) y para las consultas que filtran por fecha.
+Ubicación del Parquet:
+Local/Servidor de Archivos Compartido: Si tanto el entorno donde corre Streamlit como las máquinas de los técnicos con Power BI pueden acceder a esta ubicación.
+Almacenamiento en la Nube (Preferido para flexibilidad y escalabilidad): Como Azure Data Lake Storage Gen2, AWS S3, o Google Cloud Storage. Ambas herramientas (Python/Streamlit y Power BI) pueden leer Parquet desde estos servicios.
+Acceso a Datos y Visualización:
+
+Streamlit (Para Clientes y Personas de Interés):
+
+Tu aplicación Streamlit (escrita en Python) leerá directamente desde los archivos Parquet limpios utilizando pandas.read_parquet().
+Pandas maneja muy eficientemente la lectura de Parquet, incluyendo el filtrado por particiones si usaste ese enfoque.
+Streamlit te permitirá crear las interfaces interactivas y visualizaciones específicas que necesiten tus clientes. Podrás seleccionar columnas, agregar datos y presentarlos de forma amigable.
+Power BI (Para los Técnicos):
+
+Power BI se conectará directamente a los mismos archivos Parquet limpios (ya sea desde la ubicación compartida o el almacenamiento en la nube).
+Los técnicos pueden usar Power Query dentro de Power BI si necesitan alguna transformación adicional específica para sus análisis (aunque el grueso de la limpieza ya estaría hecho).
+Podrán aprovechar toda la potencia de Power BI para análisis más profundos, modelado de datos avanzado y creación de dashboards técnicos detallados.

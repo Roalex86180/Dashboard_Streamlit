@@ -1,0 +1,320 @@
+estoy realizando un proyecto que consiste en dasbohard para empresas de telecomunicaciones, este dashboard sera realizado 
+en streamlit, los datos vienen en excel diarios por fecha, cada empresa tiene un excel diario, se destaca que los excel no
+poseen una columnas que identificque la empresa, la forma de trabajar sera unificar todos los excel en un parquet para luego 
+pasarlo a postgres y finalmente empexar con los KPIs, ya tengo codigo adelantado
+
+
+
+verificar el tiempo promedio de ejecucion por empreas y por comunas
+verificar en que comuna se realizan mas trabajos y cuantas empresas participan
+
+# 🔹 Definir filtros y exclusiones
+ACTIVIDAD_TIPOS_MULTISKILL = [
+    'Instalación-Hogar-Fibra', 'Instalación-Masivo-Fibra',
+    'Postventa-Hogar-Fibra', 'Reparación 3Play Light', 'Postventa-Masivo-Fibra',
+    'Reparación Empresa Masivo Fibra', 'Reparación-Hogar-Fibra'
+]
+
+ACTIVIDAD_TIPOS_REPARACION = [
+    'Reparación 3Play Light', 'Reparación Empresa Masivo Fibra',
+    'Reparación-Hogar-Fibra'
+]
+
+ACTIVIDAD_TIPOS_PROVISION = [
+    'Instalación-Hogar-Fibra', 'Instalación-Masivo-Fibra',
+    'Postventa-Hogar-Fibra', 'Postventa-Masivo-Fibra'
+]
+
+ESTADO_ASIGNADAS = ['finalizada', 'no realizado']
+ESTADO_FINALIZADAS = ['finalizada']
+
+RECURSO_IDS_EXCLUIR = [3826, 3824, 3825, 5286, 3823, 3822]
+RECURSO_NOMBRES_EXCLUIR = [
+    'Bio', 'Sice', 'Rex', 'Rielecom', 'Famer', 'Hometelcom',
+    'Zener', 'Prointel', 'Soportevision',
+    'Telsycab',] considerar esto que no importen mayusculas o minusculas
+
+    filtro por mes/ calculadas en 10 dias
+             Enero| Febrero | Marzo | Abril | Mayo etc
+    Bio     | 4%      5%       3%      7%     5%
+    Sice    | 2%     4%        3%      5%     6%
+    Rex     | 
+
+
+grafico de barras Empresas vs Porcentaje colocando una linea horizontal en a meta de 4% y ordenarlas de menor a mayor
+
+se hace un filtro de barra lateral donde se pueda filrar por empresa para ver diferentesKPI y el prime KPI es la reincidencia:
+
+
+mostrar en una etiqueta:
+
+Reiteracion       6,5%
+______________|
+RIELECOM      |    12 # este es el numero de tecnicos con reincidencias
+
+luego en un dataframe
+
+Fecha Agendamiento | Recurso | % de reincidencia | ID externo | Cod_Servicio | Observación | Acción realizada | Tipo de actividad | Dirección       | Comuna     | Nombre Cliente| Rut Cliente |
+   2025/02/03        Tecnico1      8% # color rojo    1-xxxxxx     200xxxxxx       texto        texto             Repacion xxxx   CERRO PINTOR 1312   LAS CONDES   JUAN PEREZ      xxxxxxx
+
+en este dataframe aparecera el Cod_Servicio las veces que se repitio
+   despues el dataframe un colocar escrito
+
+   Tecnico 1 finaliza 25 actividades fallan 2 ------debe realizar tantas actividades de reparacion para cumplir la meta
+
+
+   Recurso    | enero| febrero| marzo
+   Juan Perez | 9,8% | 5,6%   | 3,2%
+
+   Recurso     | total finalizadas | total reincidencias| porcentaje
+   Juan Perez  |    25             | 3                  |   12%
+
+
+                        Empresa  Reincidencias  Total  % Reincidencia
+6        Data_diaria_RIELECOM             43   1291        3.330751
+8   Data_diaria_SOPORTEVISION             14    313        4.472843
+2           Data_diaria_FAMER             22    412        5.339806
+9        Data_diaria_TELSYCAB             45    806        5.583127
+5             Data_diaria_REX             64   1134        5.643739
+0             Data_diaria_BIO            137   2368        5.785473
+7            Data_diaria_SICE             86   1468        5.858311
+3     Data_diaria_HOMETELECOM             28    466        6.008584
+4        Data_diaria_PROINTEL            145   2381        6.089878
+1             Data_diaria_ECC             58    945        6.137566
+10          Data_diaria_ZENER             66   1048        6.297710
+
+
+def detectar_reincidencias_global(df: pd.DataFrame, empresa_filtro: str, inicio: pd.Timestamp, fin: pd.Timestamp, dias: int = 10) -> pd.DataFrame:
+    """
+    Detecta las reincidencias (segunda visita dentro de `dias`) sobre el rango completo.
+    Devuelve sólo las filas de reparación (segunda visita) con columna 'Mes_Reparacion'.
+    """
+    df_range = df[(df["Fecha Agendamiento"] >= inicio) & (df["Fecha Agendamiento"] <= fin)]
+    registros = []
+    for cod, grupo in df_range.groupby("Cod_Servicio"):
+        grupo = grupo.sort_values("Fecha Agendamiento").reset_index(drop=True)
+        for i in range(1, len(grupo)):
+            delta = (grupo.loc[i, "Fecha Agendamiento"] - grupo.loc[i-1, "Fecha Agendamiento"]) / np.timedelta64(1, 'D')
+            previo = grupo.loc[i-1]
+            if delta <= dias and (not empresa_filtro or empresa_filtro.lower() in str(previo['Empresa']).lower()):
+                reparacion = grupo.loc[i].copy()
+                reparacion["Mes_Reparacion"] = reparacion["Fecha Agendamiento"].strftime("%B")
+                registros.append(reparacion)
+    return pd.DataFrame(registros)
+
+
+def calcular_pct_tecnico(df: pd.DataFrame, df_reinc: pd.DataFrame) -> pd.Series:
+    total_por_tec = df.groupby("Recurso").size()
+    reinc_por_tec = df_reinc.groupby("Recurso").size()
+    pct = (reinc_por_tec / total_por_tec * 100).fillna(0).round(1)
+    return pct
+
+-----------------app.py---------------------------------
+
+
+detectar_reincidencias_global,
+calcular_pct_tecnico
+
+st.title("🔁 KPI de Reincidencias")
+# Sidebar inputs
+year = st.sidebar.slider("Año:", 2020, datetime.date.today().year, datetime.date.today().year)
+month = st.sidebar.selectbox(
+    "Mes:",
+    list(range(1,13)),
+    format_func=lambda m: datetime.date(1900, m, 1).strftime('%B')
+)
+empresa_filtro = st.sidebar.selectbox(
+    "Empresa:",
+    pd.read_parquet("Datos/datos_unificados.parquet")["Empresa"].unique()
+)
+
+# Filtrar rango completo (enero–diciembre) para detección global
+fecha_inicio = pd.to_datetime(f"{year}-01-01")
+fecha_fin = pd.to_datetime(f"{year}-12-31")
+
+# 1) Carga y filtrado inicial
+df = pd.read_parquet("Datos/datos_unificados.parquet")
+df["Fecha Agendamiento"] = pd.to_datetime(df["Fecha Agendamiento"], errors="coerce")
+df = df[(df["Estado de actividad"].str.lower() == "finalizada") &
+        (df["Tipo de actividad"].isin([
+            "Reparación Empresa Masivo Fibra",
+            "Reparación-Hogar-Fibra",
+            "Reparación 3Play Light"
+        ]))]
+
+# 2) Detección única de reincidencias en el año
+df_reinc = detectar_reincidencias_global(df, empresa_filtro, fecha_inicio, fecha_fin)
+if df_reinc.empty:
+    st.warning(f"No hay reincidencias iniciadas por {empresa_filtro} en {year}.")
+    st.stop()
+
+# 3) Resumen técnico acumulado
+df_pct = calcular_pct_tecnico(df, df_reinc)
+resumen = []
+tecns = df_reinc[df_reinc["Empresa"].str.contains(empresa_filtro, case=False)]["Recurso"].unique()
+for tec in tecns:
+    total = int(df[(df["Recurso"]==tec) & df["Empresa"].str.contains(empresa_filtro, case=False)].shape[0])
+    rein  = int(df_reinc[(df_reinc["Recurso"]==tec) & df_reinc["Empresa"].str.contains(empresa_filtro, case=False)].shape[0])
+    pct   = df_pct.get(tec, 0)
+    resumen.append({
+        "Recurso": tec,
+        "total_finalizadas": total,
+        "total_reincidencias": rein,
+        "porcentaje": f"{pct}%"
+    })
+df_summary = pd.DataFrame(resumen)
+df_summary["pct_num"] = df_summary["porcentaje"].str.rstrip("%").astype(float)
+df_summary = df_summary.sort_values("pct_num", ascending=False).drop(columns="pct_num")
+
+st.subheader("Resumen de Técnicos")
+st.table(df_summary)
+
+# 4) Detalle de eventos (solo las reincidencias)
+st.subheader("Detalle de Actividades y Reincidencias")
+cols_show = [
+    "Fecha Agendamiento","Recurso","ID externo","Cod_Servicio","Empresa",
+    "Observación","Acción realizada","Tipo de actividad",
+    "Dirección","Comuna","Rut Cliente","Nombre Cliente"
+]
+df_det = df_reinc[cols_show].sort_values(["Cod_Servicio","Fecha Agendamiento"]).reset_index(drop=True)
+st.dataframe(df_det)
+
+# 5) Gráfico técnico
+df_bar = df_summary.rename(columns={"porcentaje":"% de reincidencia"})
+fig2 = px.bar(
+    df_bar, x="% de reincidencia", y="Recurso", orientation="h", text="% de reincidencia",
+    title=f"% Reincidencia por Técnico ({datetime.date(year,month,1).strftime('%B %Y')})"
+)
+fig2.update_layout(
+    shapes=[{"type":"line","x0":4,"x1":4,"y0":-0.5,"y1":len(df_bar)-0.5,
+                "line":{"dash":"dash","color":"green"}}],
+    yaxis={"categoryorder":"total ascending"}
+)
+fig2.update_traces(textposition="outside")
+st.plotly_chart(fig2, use_container_width=True)
+
+# 6) Histórico mensual por técnico
+st.markdown("---")
+st.subheader("Histórico Mensual de Técnicos >4%")
+df_mens_tec = (
+    df_reinc[df_reinc["Empresa"].str.contains(empresa_filtro, case=False)]
+    .groupby(["Recurso","Mes_Reparacion"]).size()
+    .rename("Reincidencias").reset_index()
+)
+df_mens_tec = df_mens_tec.merge(
+    df.assign(Mes_Agendado=df["Fecha Agendamiento"].dt.strftime("%B"))
+        .groupby(["Recurso","Mes_Agendado"]).size()
+        .rename("Total").reset_index(),
+    left_on=["Recurso","Mes_Reparacion"], right_on=["Recurso","Mes_Agendado"], how="left"
+)
+df_mens_tec["% Reincidencia"] = (df_mens_tec["Reincidencias"]/df_mens_tec["Total"]*100).round(1)
+df_pivot_tec = df_mens_tec.pivot(index="Recurso", columns="Mes_Reparacion", values="% Reincidencia").fillna(0)
+st.dataframe(df_pivot_tec)
+
+# 7) Resumen mensual por empresa
+st.markdown("---")
+st.subheader("Resumen Mensual por Empresa")
+df_mens_emp = (
+    df_reinc.groupby(["Empresa","Mes_Reparacion"]).size()
+    .rename("Reincidencias").reset_index()
+)
+df_mens_emp = df_mens_emp.merge(
+    df.assign(Mes_Agendado=df["Fecha Agendamiento"].dt.strftime("%B"))
+        .groupby(["Empresa","Mes_Agendado"]).size()
+        .rename("Total").reset_index(),
+    left_on=["Empresa","Mes_Reparacion"], right_on=["Empresa","Mes_Agendado"], how="left"
+)
+df_mens_emp["% Reincidencia"] = (df_mens_emp["Reincidencias"]/df_mens_emp["Total"]*100).round(1)
+df_pivot_emp = df_mens_emp.pivot(index="Empresa", columns="Mes_Reparacion", values="% Reincidencia").fillna(0)
+st.dataframe(df_pivot_emp)
+
+
+def obtener_empresas(engine):
+        query = """
+        SELECT DISTINCT "Empresa"
+        FROM public.actividades
+        WHERE "Empresa" IS NOT NULL
+        ORDER BY "Empresa"
+    """
+
+        df_empresas = pd.read_sql(query, engine)
+
+        return df_empresas["Empresa"].tolist()
+
+
+
+    empresas_disponibles = obtener_empresas(engine)
+
+    empresa = st.selectbox("Selecciona una empresa", empresas_disponibles)
+
+
+
+    # Selección de rango de fechas
+
+    f_inicio = st.date_input("Fecha de inicio")
+
+    f_fin = st.date_input("Fecha de fin")
+
+
+
+    # Lógica automática: si hay empresa y fechas, mostrar resultados
+
+    if empresa and f_inicio and f_fin:
+
+        with st.spinner("Consultando base de datos..."):
+
+            with engine.connect() as connection:
+
+                with connection.connection.cursor() as cursor:
+
+                    df_resultado = obtener_reincidencias(engine, f_inicio, f_fin, empresa)
+
+
+
+
+
+        if not df_resultado.empty:
+
+            reincidencias_totales = df_resultado['Cod_Servicio'].value_counts().apply(lambda x: x - 1).sum()
+
+            st.success(f"Se encontraron {reincidencias_totales} reincidencias en total.")
+
+            st.dataframe(df_resultado, use_container_width=True)
+
+
+
+            # Descarga directa (sin botón extra)
+
+            @st.cache_data
+
+            def convertir_excel(df):
+
+                output = io.BytesIO()
+
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
+                    df.to_excel(writer, index=False)
+
+                output.seek(0)
+
+                return output
+
+
+
+            st.download_button(
+
+                label="📥 Descargar Excel",
+
+                data=convertir_excel(df_resultado),
+
+                file_name="reincidencias.xlsx",
+
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+            )
+
+           
+
+        else:
+
+            st.warning("No se encontraron registros de reincidencia para los filtros seleccionados.")

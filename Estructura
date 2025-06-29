@@ -1,0 +1,26 @@
+dashboard_telecomunicaciones/
+│
+├── app.py                         # Punto de entrada de la app Streamlit
+├── requirements.txt              # Dependencias del proyecto
+│
+├── datos/                         # Carpeta con archivos Excel diarios
+│   ├── datos_2025-05-01.xlsx
+│   ├── datos_2025-05-02.xlsx
+│   └── ...
+│
+├── funciones/
+│   ├── __init__.py
+|   ├── cargar_datos.py          # Generar los datos por primera vez
+│   ├── analisis.py         # Cosultas varias
+│          
+|           
+│
+└──         
+
+detalles para Tecncico xlsx
+
+
+
+ 2025/03/08  20% (asumiendo que tiene 5 trabajos y le fallo 1 )
+ 2025/03/18  8,33% (asumiendo que a estas alturas tiene 12 trabajos, pero en este segundo periodo de 10 dias a realizado 7 trabjos y no le han fallado ninguno,  sigue teniendo 1 falla)
+ 2025/03/28  10% (asumiendo que a estas alturas tiene 20 trabajos pero le fallo 1 mas tendria en su historial 2 fallas)
