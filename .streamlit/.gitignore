@@ -1,0 +1,9 @@
+.streamlit/secrets.toml
+
+# Archivos de datos locales (si aplica)
+*.parquet
+*.csv
+*.db
+
+# Ignorar carpeta con archivos locales
+Datos/
